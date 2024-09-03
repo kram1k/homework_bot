@@ -120,9 +120,9 @@ def main():
     logger.addHandler(handler)
 
     if not check_tokens():
-        logging.critical('Переменные окружения отсутсвуют')
+        logging.critical('Переменные окружения отсутствуют')
         exit()
-    logging.debug('Переменные окружения присутсвуют')
+    logging.debug('Переменные окружения присутствуют')
 
     bot = telebot.TeleBot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
@@ -134,13 +134,16 @@ def main():
             check_response(resp)
             for homework in resp.get('homeworks'):
                 status_message = parse_status(homework)
-                send_message(bot, status_message)
+                if send_message(bot, status_message):
+                    error_message = ''
+                else:
+                    error_message = 'Ошибка отправки сообщения'
             timestamp = resp.get('current_date', timestamp)
         except Exception as error:
-            message = f'Сбой в работе программы: {error}'
-            logging.error(message)
-            if message != error_message:
-                send_message(bot, message)
+            error_message = f'Сбой в работе программы: {error}'
+            logging.error(error_message)
+            if error_message != error:
+                send_message(bot, error_message)
         finally:
             time.sleep(RETRY_PERIOD)
 
