@@ -54,9 +54,10 @@ def send_message(bot, message):
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logging.debug('Выполнена отправка сообщения')
+        return True
     except Exception as error:
         logging.error(f'Ошибка при отправке сообщения {error}')
-        return True
+        return False
 
 
 def get_api_answer(timestamp):
@@ -82,17 +83,13 @@ def check_response(response):
     """Проверяет ответ API на соответствие документации из урока."""
     if not isinstance(response, dict):
         raise TypeError('Ошибка: в овете приходит неожиданный тип данных')
-    keys = {
-        'homeworks': list
-    }
     if 'homeworks' not in response:
-        raise KeyError(f'Отсутствуют ключи: {", ".join(keys.keys())}')
+        raise KeyError('Отсутствует ключь: "homeworks"')
     if not isinstance(response['homeworks'], list):
         raise TypeError(
             'Ошибка: в ответе приходит '
             'иной тип данных для ключа "homeworks"'
         )
-    return True
 
 
 def parse_status(homework):
@@ -133,12 +130,12 @@ def main():
 
     while True:
         try:
-            check_response(get_api_answer(timestamp))
-            for homework in get_api_answer(timestamp).get('homeworks'):
+            resp = get_api_answer(timestamp)
+            check_response(resp)
+            for homework in resp.get('homeworks'):
                 status_message = parse_status(homework)
                 send_message(bot, status_message)
-            current_date = get_api_answer(timestamp).get('current_date')
-            timestamp = current_date if current_date else timestamp
+            timestamp = resp.get('current_date', timestamp)
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logging.error(message)
