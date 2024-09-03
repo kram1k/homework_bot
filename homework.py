@@ -8,8 +8,7 @@ import requests
 import telebot
 from dotenv import load_dotenv
 
-logger = logging.getLogger(__name__)
-handler = StreamHandler(stream=sys.stdout)
+from errors import StatusCodeIsNot200
 
 load_dotenv()
 
@@ -35,13 +34,19 @@ required_tokens = {
 }
 
 
-class StatusCodeisnot200(Exception):
-    """When status code is not 200."""
-
-
 def check_tokens():
     """Проверяет доступность переменных окружения."""
-    return all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID])
+    tokens = {
+        'PRACTICUM_TOKEN': PRACTICUM_TOKEN,
+        'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
+        'TELEGRAM_CHAT_ID': TELEGRAM_CHAT_ID
+    }
+    blank_token_flag = True
+    for token, value in tokens.items():
+        if not value:
+            print(f"Токен {token} не найден.")
+            blank_token_flag = False
+    return blank_token_flag
 
 
 def send_message(bot, message):
@@ -51,6 +56,7 @@ def send_message(bot, message):
         logging.debug('Выполнена отправка сообщения')
     except Exception as error:
         logging.error(f'Ошибка при отправке сообщения {error}')
+        return False
 
 
 def get_api_answer(timestamp):
@@ -63,14 +69,12 @@ def get_api_answer(timestamp):
         )
         status_code = response.status_code
     except requests.exceptions.RequestException as error:
-        logging.error(f'Ошибка при запросе к основному API: {error}')
-        raise IndexError
-    except Exception as error:
-        logging.error(f'Ошибка при обработке ответа API: {error}')
-        raise IndexError
+        raise f'Ошибка при запросе к основному API: {error}'
     if status_code != 200:
-        raise StatusCodeisnot200(f'Некоректный статус '
-                                 f'ответа API:{status_code}')
+        raise StatusCodeIsNot200(
+            f'Некоректный статус '
+            f'ответа API:{status_code}'
+        )
     return response.json()
 
 
@@ -80,13 +84,13 @@ def check_response(response):
         error_message = ('Ошибка: в овете приходит неожиданный тип данных')
         logging.error(error_message)
         raise TypeError(error_message)
-    keys_list = {'homeworks': list,
-                 'current_date': int}
-    for key, key_type in keys_list.items():
-        if key not in response:
-            error_message = (f'Отсутствует ключ {key}')
-            logging.error(error_message)
-            raise KeyError(error_message)
+    keys = {
+        'homeworks': list
+    }
+    missing_keys = [key for key in keys.keys() if key not in response]
+    for key, key_type in keys.items():
+        if missing_keys:
+            raise KeyError(f'Отсутствуют ключи: {", ".join(missing_keys)}')
         if not isinstance(response[key], key_type):
             error_message = (
                 'Ошибка: в ответе приходит '
@@ -100,9 +104,9 @@ def check_response(response):
 def parse_status(homework):
     """Достает статус проверки работы и ее названия из словаря."""
     keys_list = ['homework_name', 'status']
-    for key in keys_list:
-        if key not in homework:
-            raise KeyError(f'Отсутствует ключ {key}')
+    missing_keys = [key for key in keys_list if key not in homework]
+    if missing_keys:
+        raise KeyError(f'Отсутствуют ключи: {", ".join(missing_keys)}')
     homework_name = homework['homework_name']
     homework_status = homework['status']
     if homework_status not in HOMEWORK_VERDICTS:
@@ -116,6 +120,8 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
+    logger = logging.getLogger(__name__)
+    handler = StreamHandler(stream=sys.stdout)
     formatter = '%(asctime)s - %(levelname)s - %(message)s'
     logger.setLevel(logging.DEBUG)
     handler.setFormatter(formatter)
@@ -132,13 +138,12 @@ def main():
 
     while True:
         try:
-            response_api = get_api_answer(timestamp)
-            check_response(response_api)
-            homeworks = response_api['homeworks']
-            for homework in homeworks:
+            check_response(get_api_answer(timestamp))
+            for homework in get_api_answer(timestamp).get('homeworks'):
                 status_message = parse_status(homework)
-                send_message(bot, status_message)
-            current_date = response_api['current_date']
+                if send_message(bot, status_message):
+                    error_message = ''
+            current_date = get_api_answer(timestamp).get('current_date')
             timestamp = current_date if current_date else timestamp
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
@@ -146,7 +151,8 @@ def main():
             if message != error_message:
                 send_message(bot, message)
             error_message = message
-        time.sleep(RETRY_PERIOD)
+        finally:
+            time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
