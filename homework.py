@@ -44,7 +44,7 @@ def check_tokens():
     blank_token_flag = True
     for token, value in tokens.items():
         if not value:
-            print(f"Токен {token} не найден.")
+            logging.debug(f"Токен {token} не найден.")
             blank_token_flag = False
     return blank_token_flag
 
@@ -56,7 +56,7 @@ def send_message(bot, message):
         logging.debug('Выполнена отправка сообщения')
     except Exception as error:
         logging.error(f'Ошибка при отправке сообщения {error}')
-        return False
+        return True
 
 
 def get_api_answer(timestamp):
@@ -81,23 +81,17 @@ def get_api_answer(timestamp):
 def check_response(response):
     """Проверяет ответ API на соответствие документации из урока."""
     if not isinstance(response, dict):
-        error_message = ('Ошибка: в овете приходит неожиданный тип данных')
-        logging.error(error_message)
-        raise TypeError(error_message)
+        raise TypeError('Ошибка: в овете приходит неожиданный тип данных')
     keys = {
         'homeworks': list
     }
-    missing_keys = [key for key in keys.keys() if key not in response]
-    for key, key_type in keys.items():
-        if missing_keys:
-            raise KeyError(f'Отсутствуют ключи: {", ".join(missing_keys)}')
-        if not isinstance(response[key], key_type):
-            error_message = (
-                'Ошибка: в ответе приходит '
-                'иной тип данных для ключа "homeworks"'
-            )
-            logging.error(error_message)
-            raise TypeError(error_message)
+    if 'homeworks' not in response:
+        raise KeyError(f'Отсутствуют ключи: {", ".join(keys.keys())}')
+    if not isinstance(response['homeworks'], list):
+        raise TypeError(
+            'Ошибка: в ответе приходит '
+            'иной тип данных для ключа "homeworks"'
+        )
     return True
 
 
@@ -110,10 +104,11 @@ def parse_status(homework):
     homework_name = homework['homework_name']
     homework_status = homework['status']
     if homework_status not in HOMEWORK_VERDICTS:
-        error_message = ('Неожиданный статус домашней работы, '
-                         'обнаруженный в ответе API')
-        logging.error(error_message)
-        raise KeyError(error_message)
+
+        raise KeyError(
+            'Неожиданный статус домашней работы, '
+            'обнаруженный в ответе API'
+        )
     verdict = HOMEWORK_VERDICTS[homework_status]
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
@@ -141,8 +136,7 @@ def main():
             check_response(get_api_answer(timestamp))
             for homework in get_api_answer(timestamp).get('homeworks'):
                 status_message = parse_status(homework)
-                if send_message(bot, status_message):
-                    error_message = ''
+                send_message(bot, status_message)
             current_date = get_api_answer(timestamp).get('current_date')
             timestamp = current_date if current_date else timestamp
         except Exception as error:
@@ -150,7 +144,7 @@ def main():
             logging.error(message)
             if message != error_message:
                 send_message(bot, message)
-            error_message = message
+                error_message = message
         finally:
             time.sleep(RETRY_PERIOD)
 
