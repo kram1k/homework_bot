@@ -140,8 +140,7 @@ def main():
             message = f'Сбой в работе программы: {error}'
             logging.error(message)
             if message != error_message:
-                send_message(bot, message)
-                error_message = message
+                send_message(bot, message)         
         finally:
             time.sleep(RETRY_PERIOD)
 
