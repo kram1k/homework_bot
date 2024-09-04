@@ -126,7 +126,7 @@ def main():
 
     bot = telebot.TeleBot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
-    error_message = ''
+    old_error_message = ''
 
     while True:
         try:
@@ -137,11 +137,11 @@ def main():
                 send_message(bot, status_message)
             timestamp = resp.get('current_date', timestamp)
         except Exception as error:
-            error_message = f'Сбой в работе программы: {error}'
-            logging.error(error_message)
-            if status_message != error_message:
-                send_message(bot, error_message)
-                status_message = error_message
+            new_error_message = f'Сбой в работе программы: {error}'
+            logging.error(new_error_message)
+            if old_error_message != new_error_message:
+                if send_message(bot, status_message) is True:
+                    old_error_message = new_error_message
             else:
                 logging.debug('Сообщение не изменилось')
         finally:
