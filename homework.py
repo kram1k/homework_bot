@@ -134,16 +134,16 @@ def main():
             check_response(resp)
             for homework in resp.get('homeworks'):
                 status_message = parse_status(homework)
-                if send_message(bot, status_message):
-                    error_message = ''
-                else:
-                    error_message = 'Ошибка отправки сообщения'
+                send_message(bot, status_message)
             timestamp = resp.get('current_date', timestamp)
         except Exception as error:
             error_message = f'Сбой в работе программы: {error}'
             logging.error(error_message)
-            if error_message != error:
+            if status_message != error_message:
                 send_message(bot, error_message)
+                status_message = error_message
+            else:
+                logging.debug('Сообщение не изменилось')
         finally:
             time.sleep(RETRY_PERIOD)
 
